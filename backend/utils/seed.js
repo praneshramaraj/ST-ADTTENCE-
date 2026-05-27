@@ -63,6 +63,11 @@ async function seedStudents() {
 }
 
 async function seed() {
+  const userCount = await User.countDocuments();
+  if (userCount > 0) {
+    console.log("Database already seeded. Skipping seed.");
+    return;
+  }
   for (const [name, email, department] of hods) {
     await upsertUser({ name, email, role: "hod", department, classAssigned: null }, "hod@sjit");
   }

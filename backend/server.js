@@ -29,18 +29,39 @@ app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/email", emailRoutes);
 app.use("/api/achievements", achievementRoutes);
 
-const PORT = process.env.PORT || 5002;
-async function start() {
+let isConnected = false;
+async function connectDb() {
+  if (isConnected) return;
   const mongoUri = !process.env.MONGO_URI || process.env.MONGO_URI.includes("<mongodb")
     ? "mongodb://127.0.0.1:27017/st_attendance_manager"
     : process.env.MONGO_URI;
-  if (mongoUri.includes("127.0.0.1")) console.warn("Using local MongoDB fallback. Update backend/.env MONGO_URI for Atlas or another database.");
+  if (mongoUri.includes("127.0.0.1")) {
+    console.warn("Using local MongoDB fallback. Update backend/.env MONGO_URI for Atlas or another database.");
+  }
   await mongoose.connect(mongoUri);
+  isConnected = true;
   await seed();
-  app.listen(PORT, () => console.log(`ST Attendance Manager API running on http://localhost:${PORT}`));
 }
 
-start().catch((err) => {
-  console.error(err);
-  process.exit(1);
+app.use(async (req, res, next) => {
+  if (req.path === "/") return next();
+  try {
+    await connectDb();
+    next();
+  } catch (err) {
+    console.error("Database connection error:", err);
+    res.status(500).json({ error: "Database connection failed", details: err.message });
+  }
 });
+
+if (!process.env.VERCEL) {
+  const PORT = process.env.PORT || 5002;
+  connectDb().then(() => {
+    app.listen(PORT, () => console.log(`ST Attendance Manager API running on http://localhost:${PORT}`));
+  }).catch((err) => {
+    console.error("Failed to start server locally:", err);
+    process.exit(1);
+  });
+}
+
+module.exports = app;
